@@ -277,5 +277,5 @@ def process(init_state,obstacles,E,A,I,rho,stretching_coeff=1000.0,obstacle_coef
 
 
 
-if __name__ == "__main__":
-    waypoints_refine_server()
+# if __name__ == "__main__":
+#     waypoints_refine_server()

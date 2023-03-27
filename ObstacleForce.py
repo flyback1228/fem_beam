@@ -1,6 +1,8 @@
 import shapely
 from Element import *
 import Force
+import matplotlib.pyplot as plt
+
 class ObstacleForce:
     def __init__(self, data):
         """Obstacle force applied to car
@@ -34,6 +36,11 @@ class ObstacleForce:
         # self.tree = shapely.MultiPoint(self.points)
         # self.k = k
 
+    def plot_obstacles(self):
+        for d in self.linerings:
+            x,y = d.xy
+            plt.plot(x,y,'-g')
+        plt.show()
 
     def apply_forces(self, node_list, k=2e6):
         

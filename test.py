@@ -3,15 +3,26 @@ from Element import Element
 from beam_fem import *
 import casadi as ca
 import matplotlib.pyplot as plt
+from fem_refine import *
 
-def apply_streching_force(element_list,k=1000.0):
-    for element in element_list:
-        angle = element.angle
-        mag = k/element.length
-        element.node1.forces.append(Force(mag*np.cos(angle),mag*np.sin(angle),0))
-        element.node2.forces.append(Force(mag*np.cos(angle),-mag*np.sin(angle),0))
+import fiona
+from shapely.geometry import shape
 
+def load_obastacle():
 
+    schema = {
+        'geometry': 'Polygon',
+        'properties': {'id': 'int'},
+    }
+    obstacles=[]
+    with fiona.open("extended_polygon.shp") as shapefile:
+        for record in shapefile:
+            geometry = shape(record['geometry'])
+            x5,y5 = geometry.exterior.xy
+            obstacles.append(np.vstack([x5,y5]).transpose())
+    return obstacles
+    #         plt.plot(x5,y5)
+    # plt.show()
 
 def test_2_beams():
     node_pos = np.array([[0,0],[0,0.5],[0,1.0]])
@@ -220,10 +231,14 @@ def test_vibration():
     plt.show()
 
     # print(r)
-
+def test_fem_refine():
+    obs = load_obastacle()
+    fem = FemRefine(obs)
+    fem.obstacls_force.plot_obstacles()
 
 
 if __name__=='__main__':
-    test_2_beams_no_constraint()
+    test_fem_refine()
+    # test_2_beams_no_constraint()
     # test_vibration()
     # test_2_beams()
