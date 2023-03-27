@@ -1,6 +1,7 @@
 import shapely
+import shapely.ops
 from Element import *
-import Force
+from Force import *
 import matplotlib.pyplot as plt
 
 class ObstacleForce:
@@ -54,12 +55,14 @@ class ObstacleForce:
             direction = (direction/np.linalg.norm(direction)).reshape(3,)
             # direction = direction*np.array([-tangents[i,1],tangents[i,0],0.0])
             
-            polygon_index=self.index_of_polygons[idx]
-            if(self.polygons[polygon_index].contains(p1)):
-                f = -1e11*direction
-            else:
-                distance = shapely.distance(p1,p2)
-                f = min(k/distance/distance,1e11)
-            node_list[i].forces.append(Force(*f))
+            # polygon_index=self.index_of_polygons[idx]
+            # if(self.polygons[polygon_index].contains(p1)):
+            #     f = -1e11*direction
+            # else:
+            #     distance = shapely.distance(p1,p2)
+            #     f = min(k/distance/distance,1e11)*direction
+            distance = shapely.distance(p1,p2)
+            f = min(k/distance/distance,1e11)*direction
+            node_list[i].forces.append(Force(f[0],f[1],f[2]))
                 
 

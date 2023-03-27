@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 
+import os
 from tkinter import N
 from ObstacleForce import *
 import casadi
 import numpy as np
 from beam_fem import *
 import matplotlib.pyplot as plt
+import scipy.integrate
+import scipy
+import fiona
+from shapely.geometry import shape
 
 def apply_streching_force(element_list,k=1000.0):
     for element in element_list:
@@ -19,17 +24,16 @@ class FemRefine:
         self.obstacls_force = ObstacleForce(obstacles)
         self.plot_history = []
         self.element_history = []
+         
         
     def process(self,init_state,E,A,I,rho,total_iterations,tf,stretching_coeff=1000.0,obstacle_coeff=2e6):
-        state = init_state
+        state = init_state       
         if len(init_state[0]==2):
-            phi0 =np.arctan2(init_state[1,1]-init_state[0,1],init_state[1,0]-init_state[0,0])
-            positions[1,:]=init_state[1,0:2]
-        
+            phi0 =np.arctan2(init_state[1,1]-init_state[0,1],init_state[1,0]-init_state[0,0])        
         else:
-            phi0 = init_state[0,2]        
-        n_elem = len(init_state)-1
-        
+            phi0 = init_state[0,2] 
+                   
+        n_elem = len(init_state)-1        
         self.plot_history.append(np.copy(state[:,0:2]))
         
         direction = np.array([np.cos(phi0), np.sin(phi0)])
@@ -79,11 +83,11 @@ class FemRefine:
         # constraints
         apply_boundary(sorted_node_list,[[0,True,True,True],[n_elem,True,True,False]])
         
-        M,C,K,F,constraint_index = assemble_matrix(sorted_node_list,element_list,delete_constraint_columns=True)
+        M,C,K,F,M_inv,constraint_index = assemble_matrix(sorted_node_list,element_list,delete_constraint_columns=True)
 
         print('constraint_index',constraint_index)  
 
-        M_inv = ca.inv(M)
+        # M_inv = ca.inv(M)
         
 
         ndof = M.columns()
@@ -146,6 +150,48 @@ class FemRefine:
                 mag = np.linalg.norm([f.fx,f.fy])
                 plt.arrow(e.node1.pos[0],e.node1.pos[1],f.fx/mag*ratio,f.fy/mag*ratio)
             
+      
+class FemRefineScipy:
+    def __init__(self,init_state, obstacles_force,E,A,I,rho,stretching_coeff,obstacle_coeff) -> None:
+        self.obstacls_force = obstacles_force
+        
+        self.plot_history = []
+        self.element_history = []
+        self.positions = init_state[:,0:2]
+        n_elem = len(init_state)-1
+        
+        sorted_node_list,element_list = mesh(init_state,E,A,I,rho)
+        apply_streching_force(element_list,stretching_coeff)
+        self.obstacls_force.apply_forces(node_list=sorted_node_list,k=obstacle_coeff)
+        apply_boundary(sorted_node_list,[[0,True,True,True],[n_elem,True,True,False]])
+        self.M,self.C,self.K,self.F,self.constraint_index = assemble_matrix_np(sorted_node_list,element_list,delete_constraint_columns=True)
+        self.n_dof = 3*(n_elem+1)-len(self.constraint_index)
+        self.M_inv = np.matrix(scipy.linalg.inv(self.M))
+        
+    def model(self,y,t):      
+         
+        y_dot = np.zeros_like(y)
+        y_dot[0:self.n_dof]=y[self.n_dof:]
+        temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
+        y_dot[self.n_dof:] = np.matmul(self.M_inv,temp.transpose()).reshape(self.n_dof,)
+        return y_dot
+    
+    def simulator(self):
+        # state = np.insert(self.positions,[2],np.zeros((len(self.positions),1)),axis=1)
+        # state = state.reshape((3*len(state)))
+        y0 = np.zeros([2*self.n_dof,])
+        y_list =scipy.integrate.odeint(self.model,y0,t=[0,0.01,0.04,10])
+        
+        y_list = y_list[:,0:self.n_dof]
+        
+        z = np.zeros((y_list.shape[0],1))
+        for c in self.constraint_index:
+            y_list = np.insert(y_list,[c],z,axis=1)
+             
+        
+        # print(type(y_list))
+        # print(y_list.shape)
+        return y_list   
         
 
 
@@ -277,5 +323,60 @@ def process(init_state,obstacles,E,A,I,rho,stretching_coeff=1000.0,obstacle_coef
 
 
 
-# if __name__ == "__main__":
-#     waypoints_refine_server()
+if __name__ == "__main__":
+    obstacles=[]
+    with fiona.open("extended_polygon.shp") as shapefile:
+        for record in shapefile:
+            geometry = shape(record['geometry'])
+            x5,y5 = geometry.exterior.xy
+            obstacles.append(np.vstack([x5,y5]).transpose())
+
+    obstacle_force = ObstacleForce(obstacles)
+    
+    # read sst
+    script_dir = os.path.dirname(__file__)
+    sst_file = os.path.join(script_dir, 'racecar_planner_temp/sst_data.txt')
+    sst_state = np.array(ca.DM.from_file(sst_file))
+    
+    r=0.3
+    A=np.pi*r*r
+    Iz =np.pi*r*r*r*r
+    E=1e6
+    rho=200
+    phi0 = sst_state[0,2] 
+    direction = np.array([np.cos(phi0), np.sin(phi0)])
+    direction_dm = casadi.DM(direction)
+    
+    positions = np.zeros((len(sst_state),2))
+    positions[2:,:] = sst_state[2:,0:2]
+    positions[0,:] = sst_state[0,0:2]            
+    
+    p0 = casadi.DM(positions[0,:])
+    p2 = casadi.DM(positions[2,:])
+    
+    d1 = casadi.norm_2(p2-p0)
+
+    opti = casadi.Opti()
+    p1 = opti.variable(2,1)
+    d0 = casadi.norm_2(p2-p1)
+    d2 = casadi.norm_2(p0-p1)
+    opti.subject_to((p1-p0)/d2==direction_dm)
+    opti.subject_to(d2>0)
+    opti.minimize(casadi.dot(d0-d1,d0-d1)+casadi.dot(d1-d2,d1-d2)+casadi.dot(d2-d0,d2-d0))
+    opti.set_initial(p1,p0+direction_dm*d1/2)
+    casadi_opts={'print_time':False}
+    opopt_opts = {'print_level':0}
+    opti.solver('ipopt',casadi_opts,opopt_opts)
+    sol = opti.solve()
+    print('Insert the direction guide point: {}'.format(sol.value(p1)))
+    positions[1,:] = sol.value(p1)
+    sim = FemRefineScipy(positions,obstacle_force,E,A,Iz,rho,stretching_coeff=100.0,obstacle_coeff=3e3)
+    y_list = sim.simulator()
+    
+    for y in y_list:
+        y = np.reshape(y,(-1,3))
+        plt.plot(y[:,0]+positions[:,0],y[:,1]+positions[:,1])
+    plt.show()
+    # for y in y_list:
+        
+    #     y = np.insert(y,)

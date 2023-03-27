@@ -4,7 +4,8 @@ from beam_fem import *
 import casadi as ca
 import matplotlib.pyplot as plt
 from fem_refine import *
-
+from pathlib import Path
+import os
 import fiona
 from shapely.geometry import shape
 
@@ -234,8 +235,18 @@ def test_vibration():
 def test_fem_refine():
     obs = load_obastacle()
     fem = FemRefine(obs)
-    fem.obstacls_force.plot_obstacles()
-
+    # fem.obstacls_force.plot_obstacles()
+    
+    # read sst
+    script_dir = os.path.dirname(__file__)
+    sst_file = os.path.join(script_dir, 'racecar_planner_temp/sst_data.txt')
+    sst_state = np.array(ca.DM.from_file(sst_file))
+    
+    r=0.3
+    A=np.pi*r*r
+    Iz =np.pi*r*r*r*r
+    E=1e6
+    fem.process(sst_state,E,A,Iz,rho=200,total_iterations=40,tf=0.1)
 
 if __name__=='__main__':
     test_fem_refine()

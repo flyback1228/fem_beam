@@ -5,6 +5,7 @@ from Node import Node
 from Element import Element
 import numpy as np
 from scipy.linalg import fractional_matrix_power
+import scipy.linalg
 import collections
 import casadi as ca
 
@@ -132,14 +133,80 @@ def assemble_matrix(sorted_node_list,elements,delete_constraint_columns=True):
 
     M_inv_root = fractional_matrix_power(np.matrix(M),-0.5)        
     C = 2*fractional_matrix_power(M_inv_root*np.matrix(K)*M_inv_root,0.5)
+    M_inv = ca.DM(scipy.linalg.inv(M))
 
     C.real[abs(C.real)<1e-5]=0.0
     C = ca.DM(C.real)
     
 
+    return M,C,K,F,M_inv,constraint_index
+
+def assemble_matrix_np(sorted_node_list,elements,delete_constraint_columns=True):   
+    
+    ndof = 3*len(sorted_node_list)
+
+    K = np.zeros([ndof,ndof])
+    M = np.zeros([ndof,ndof])
+
+    for element in elements:
+        i1 = 3*sorted_node_list.index(element.node1)
+        i2 = 3*sorted_node_list.index(element.node2)
+        k_e = element.global_stiffness_matrix()
+        m_e = element.global_mass_matrix()
+
+        K[i1:i1+3,i1:i1+3] += k_e[0:3,0:3]
+        K[i1:i1+3,i2:i2+3] += k_e[0:3,3:6]
+        K[i2:i2+3,i1:i1+3] += k_e[3:6,0:3]
+        K[i2:i2+3,i2:i2+3] += k_e[3:6,3:6]
+
+        M[i1:i1+3,i1:i1+3] += m_e[0:3,0:3]
+        M[i1:i1+3,i2:i2+3] += m_e[0:3,3:6]
+        M[i2:i2+3,i1:i1+3] += m_e[3:6,0:3]
+        M[i2:i2+3,i2:i2+3] += m_e[3:6,3:6]
+
+    constraint_index=[]
+    F = np.zeros((ndof,))
+    for i,node in enumerate(sorted_node_list):
+        
+        force = Force()
+        for f in node.forces:
+            force+=f
+        
+        F[i*3+0]=force.fx
+        F[i*3+1]=force.fy
+        F[i*3+2]=force.mz
+
+        boundry = Boundary()
+        for b in node.boundaries:
+            boundry+=b
+
+        if boundry.dx:
+            constraint_index.append(i*3)
+        if boundry.dy:
+            constraint_index.append(i*3+1)
+        if boundry.rz:
+            constraint_index.append(i*3+2)
+
+    if delete_constraint_columns:
+        K = np.delete(K,constraint_index,0)
+        K = np.delete(K,constraint_index,1)
+        K = np.matrix(K)
+        
+        M = np.delete(M,constraint_index,0)
+        M = np.delete(M,constraint_index,1)
+        M = np.matrix(M)
+        
+        F = np.delete(F,constraint_index,0)
+        F = np.matrix(F)
+
+    M_inv_root = fractional_matrix_power(M,-0.5)        
+    C = 2*fractional_matrix_power(M_inv_root*K*M_inv_root,0.5)
+ 
+    C.real[abs(C.real)<1e-5]=0.0
+    C = np.matrix(C.real)
+    
+
     return M,C,K,F,constraint_index
-
-
 
 if __name__ == '__main__':
     n1 = Node(0,np.array([1,1.0]))
