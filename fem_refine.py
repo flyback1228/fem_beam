@@ -160,16 +160,16 @@ class FemRefineScipy:
         self.positions = init_state[:,0:2]
         n_elem = len(init_state)-1
         
-        sorted_node_list,element_list = mesh(init_state,E,A,I,rho)
-        apply_streching_force(element_list,stretching_coeff)
-        self.obstacls_force.apply_forces(node_list=sorted_node_list,k=obstacle_coeff)
-        apply_boundary(sorted_node_list,[[0,True,True,True],[n_elem,True,True,False]])
-        self.M,self.C,self.K,self.F,self.constraint_index = assemble_matrix_np(sorted_node_list,element_list,delete_constraint_columns=True)
+        self.sorted_node_list,self.element_list = mesh(init_state,E,A,I,rho)
+        apply_streching_force(self.element_list,stretching_coeff)
+        self.obstacls_force.apply_forces(node_list=self.sorted_node_list,k=obstacle_coeff)
+        apply_boundary(self.sorted_node_list,[[0,True,True,True],[n_elem,True,True,False]])
+        self.M,self.C,self.K,self.F,self.constraint_index = assemble_matrix_np(self.sorted_node_list,self.element_list,delete_constraint_columns=True)
         self.n_dof = 3*(n_elem+1)-len(self.constraint_index)
         self.M_inv = np.matrix(scipy.linalg.inv(self.M))
+        print("constructor finished")
         
-    def model(self,y,t):      
-         
+    def model(self,y,t):
         y_dot = np.zeros_like(y)
         y_dot[0:self.n_dof]=y[self.n_dof:]
         temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
@@ -179,7 +179,21 @@ class FemRefineScipy:
     def simulator(self):
         # state = np.insert(self.positions,[2],np.zeros((len(self.positions),1)),axis=1)
         # state = state.reshape((3*len(state)))
-        y0 = np.zeros([2*self.n_dof,])
+        # y0 = np.zeros([2*self.n_dof,])
+        y0 = np.zeros([self.n_dof+len(self.constraint_index)])
+        for i in range(len(self.element_list)-1):
+            y0[(i+1)*3]=-self.element_list[i].length*0.1
+            angle = self.element_list[i+1].angle-self.element_list[i].angle
+            if angle<-np.pi:
+                angle=angle+2*np.pi
+            elif angle>np.pi:
+                angle = angle-2*np.pi
+                
+            y0[(i+1)*3+2]=angle
+        
+        y0 = np.delete(y0,self.constraint_index)
+        y0 = np.append(y0,np.zeros(self.n_dof,))        
+        
         y_list =scipy.integrate.odeint(self.model,y0,t=[0,0.01,0.04,10])
         
         y_list = y_list[:,0:self.n_dof]
@@ -342,7 +356,7 @@ if __name__ == "__main__":
     A=np.pi*r*r
     Iz =np.pi*r*r*r*r
     E=1e6
-    rho=200
+    rho=2000
     phi0 = sst_state[0,2] 
     direction = np.array([np.cos(phi0), np.sin(phi0)])
     direction_dm = casadi.DM(direction)
@@ -370,12 +384,14 @@ if __name__ == "__main__":
     sol = opti.solve()
     print('Insert the direction guide point: {}'.format(sol.value(p1)))
     positions[1,:] = sol.value(p1)
-    sim = FemRefineScipy(positions,obstacle_force,E,A,Iz,rho,stretching_coeff=100.0,obstacle_coeff=3e3)
+    sim = FemRefineScipy(positions,obstacle_force,E,A,Iz,rho,stretching_coeff=100.0,obstacle_coeff=2e3)
     y_list = sim.simulator()
     
+    ax = plt.subplot(1,1,1)
+    obstacle_force.plot_obstacles(ax)
     for y in y_list:
         y = np.reshape(y,(-1,3))
-        plt.plot(y[:,0]+positions[:,0],y[:,1]+positions[:,1])
+        ax.plot(y[:,0]+positions[:,0],y[:,1]+positions[:,1])
     plt.show()
     # for y in y_list:
         
