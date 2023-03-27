@@ -37,11 +37,16 @@ class ObstacleForce:
         # self.tree = shapely.MultiPoint(self.points)
         # self.k = k
 
-    def plot_obstacles(self):
-        for d in self.linerings:
-            x,y = d.xy
-            plt.plot(x,y,'-g')
-        plt.show()
+    def plot_obstacles(self,ax=None):
+        if ax is None:
+            for d in self.linerings:
+                x,y = d.xy
+                plt.plot(x,y,'-g')
+            plt.show()
+        else:
+            for d in self.linerings:
+                x,y = d.xy
+                ax.plot(x,y,'-g')
 
     def apply_forces(self, node_list, k=2e6):
         
