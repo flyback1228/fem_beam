@@ -181,8 +181,15 @@ class FemRefineScipy:
         # state = state.reshape((3*len(state)))
         # y0 = np.zeros([2*self.n_dof,])
         y0 = np.zeros([self.n_dof+len(self.constraint_index)])
+       
         for i in range(len(self.element_list)-1):
-            y0[(i+1)*3]=-self.element_list[i].length*0.1
+            
+            ux = self.element_list[i].length*0.1
+            phi = self.element_list[i].angle
+            shrienk = np.array([ux,0.0])
+            mat = np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
+            y0[(i+1)*3:(i+1)*3+2] = np.matmul(mat,shrienk)
+            
             angle = self.element_list[i+1].angle-self.element_list[i].angle
             if angle<-np.pi:
                 angle=angle+2*np.pi
