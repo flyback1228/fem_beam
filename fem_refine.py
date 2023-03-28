@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import copy
 import os
 from tkinter import N
 from ObstacleForce import *
@@ -152,13 +153,14 @@ class FemRefine:
             
       
 class FemRefineScipy:
-    def __init__(self,init_state, obstacles_force,E,A,I,rho,stretching_coeff,obstacle_coeff) -> None:
+    def __init__(self,init_state,phi0, obstacles_force,E,A,I,rho,stretching_coeff,obstacle_coeff) -> None:
         self.obstacls_force = obstacles_force
         
         self.plot_history = []
         self.element_history = []
         self.positions = init_state[:,0:2]
         n_elem = len(init_state)-1
+        self.phi0 = phi0
         
         self.sorted_node_list,self.element_list = mesh(init_state,E,A,I,rho)
         apply_streching_force(self.element_list,stretching_coeff)
@@ -172,7 +174,8 @@ class FemRefineScipy:
     def model(self,y,t):
         y_dot = np.zeros_like(y)
         y_dot[0:self.n_dof]=y[self.n_dof:]
-        temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
+        # temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
+        temp = self.F-np.matmul(self.K,y[0:self.n_dof])
         y_dot[self.n_dof:] = np.matmul(self.M_inv,temp.transpose()).reshape(self.n_dof,)
         return y_dot
     
@@ -181,16 +184,18 @@ class FemRefineScipy:
         # state = state.reshape((3*len(state)))
         # y0 = np.zeros([2*self.n_dof,])
         y0 = np.zeros([self.n_dof+len(self.constraint_index)])
-       
+        previous_phi = self.phi0
+        
         for i in range(len(self.element_list)-1):
             
-            ux = self.element_list[i].length*0.1
+            ux = self.element_list[i].length*.1
             phi = self.element_list[i].angle
             shrienk = np.array([ux,0.0])
             mat = np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
             y0[(i+1)*3:(i+1)*3+2] = np.matmul(mat,shrienk)
             
-            angle = self.element_list[i+1].angle-self.element_list[i].angle
+            angle = self.element_list[i+1].angle-previous_phi
+            previous_phi = self.element_list[i].angle
             if angle<-np.pi:
                 angle=angle+2*np.pi
             elif angle>np.pi:
@@ -199,9 +204,10 @@ class FemRefineScipy:
             y0[(i+1)*3+2]=angle
         
         y0 = np.delete(y0,self.constraint_index)
-        y0 = np.append(y0,np.zeros(self.n_dof,))        
+        y0 = np.append(y0,np.zeros(self.n_dof,))    
+        print('y0 = ',y0)    
         
-        y_list =scipy.integrate.odeint(self.model,y0,t=[0,0.01,0.04,10])
+        y_list =scipy.integrate.odeint(self.model,y0,t=np.arange(0,10,0.1))
         
         y_list = y_list[:,0:self.n_dof]
         
@@ -209,14 +215,25 @@ class FemRefineScipy:
         for c in self.constraint_index:
             y_list = np.insert(y_list,[c],z,axis=1)
              
-        
-        # print(type(y_list))
-        # print(y_list.shape)
+        # y = y_list[0,:]
+        # y = np.reshape(y,(-1,3))
+        # plt.plot(y[:,0]+self.positions[:,0],y[:,1]+self.positions[:,1],label='{}'.format(0))
+        # y = y_list[-1,:]
+        # y = np.reshape(y,(-1,3))
+        # plt.plot(y[:,0]+self.positions[:,0],y[:,1]+self.positions[:,1],label='{}'.format(1))
+        # # for i,y in enumerate(y_list):
+        # #     # if i%3==0:
+        # #     y = np.reshape(y,(-1,3))
+        # #     plt.plot(y[:,0]+self.positions[:,0],y[:,1]+self.positions[:,1],label='{}'.format(i))
+        # # # print(type(y_list))
+        # # # print(y_list.shape)
+        # plt.legend()
+        # plt.show()
         return y_list   
         
 
 
-def process(init_state,obstacles,E,A,I,rho,stretching_coeff=1000.0,obstacle_coeff=2e6):
+def process(init_state,obstacles,E,A,I,rho,stretching_coeff=1000.0,obstacle_coeff=2e7):
     """_summary_
 
     Args:
@@ -341,10 +358,7 @@ def process(init_state,obstacles,E,A,I,rho,stretching_coeff=1000.0,obstacle_coef
         print(xt)
         positions=casadi.reshape(xt,(3,)).T()[:,0:2]
         
-
-
-
-if __name__ == "__main__":
+def test0():
     obstacles=[]
     with fiona.open("extended_polygon.shp") as shapefile:
         for record in shapefile:
@@ -364,42 +378,88 @@ if __name__ == "__main__":
     Iz =np.pi*r*r*r*r
     E=1e6
     rho=2000
+    total_its = 2
     phi0 = sst_state[0,2] 
-    direction = np.array([np.cos(phi0), np.sin(phi0)])
-    direction_dm = casadi.DM(direction)
+    positions = sst_state[:,0:2]
+    print(positions[-1])
+    plot_history = [copy.copy(positions)]
     
-    positions = np.zeros((len(sst_state),2))
-    positions[2:,:] = sst_state[2:,0:2]
-    positions[0,:] = sst_state[0,0:2]            
-    
-    p0 = casadi.DM(positions[0,:])
-    p2 = casadi.DM(positions[2,:])
-    
-    d1 = casadi.norm_2(p2-p0)
-
-    opti = casadi.Opti()
-    p1 = opti.variable(2,1)
-    d0 = casadi.norm_2(p2-p1)
-    d2 = casadi.norm_2(p0-p1)
-    opti.subject_to((p1-p0)/d2==direction_dm)
-    opti.subject_to(d2>0)
-    opti.minimize(casadi.dot(d0-d1,d0-d1)+casadi.dot(d1-d2,d1-d2)+casadi.dot(d2-d0,d2-d0))
-    opti.set_initial(p1,p0+direction_dm*d1/2)
-    casadi_opts={'print_time':False}
-    opopt_opts = {'print_level':0}
-    opti.solver('ipopt',casadi_opts,opopt_opts)
-    sol = opti.solve()
-    print('Insert the direction guide point: {}'.format(sol.value(p1)))
-    positions[1,:] = sol.value(p1)
-    sim = FemRefineScipy(positions,obstacle_force,E,A,Iz,rho,stretching_coeff=100.0,obstacle_coeff=2e3)
-    y_list = sim.simulator()
+    for iter in range(total_its):
+        print('processing: {}/{}'.format(iter,total_its))      
+        sim = FemRefineScipy(positions,phi0,obstacle_force,E,A,Iz,rho,stretching_coeff=100.0,obstacle_coeff=2e6)
+        y_list = sim.simulator()
+        sst_state = np.reshape(y_list[-1,:],(-1,3))
+        print(sst_state)
+        positions = positions + sst_state[:,0:2]
+        plot_history.append(copy.copy(positions))
     
     ax = plt.subplot(1,1,1)
     obstacle_force.plot_obstacles(ax)
-    for y in y_list:
-        y = np.reshape(y,(-1,3))
-        ax.plot(y[:,0]+positions[:,0],y[:,1]+positions[:,1])
+    for i,y in enumerate(plot_history):
+        # if i%3==0:
+            # y = np.reshape(y,(-1,3))
+        ax.plot(y[:,0],y[:,1],label='{}'.format(i))
+    ax.legend()
     plt.show()
-    # for y in y_list:
-        
-    #     y = np.insert(y,)
+
+if __name__ == "__main__":
+
+    node_pos = np.array([[0,0],[0,0.1],[0,0.2],[0,0.3],[0,0.4]],dtype=np.float32)
+    r=0.3
+    sorted_node_list,element_list = mesh(node_pos,1e6,A=np.pi*r*r,I=np.pi*r**4,rho=200)
+
+    for e in element_list:
+        print('element:',e.id,';node1:',e.node1.id,';node2:',e.node2.id,'length:',e.length)
+
+    apply_force(sorted_node_list,[[2,0,2000,0]])
+
+    apply_boundary(sorted_node_list,[[0,True,True,True]])
+    
+    pre_defome=np.array([[0,0,np.pi/2],[0.05,0.12,np.pi/6],[0.1,0.23,np.pi/3],[0.15,0.34,np.pi/6],[0.2,0.45,2*np.pi/5]],dtype=np.float32)
+    M,C,K,F,constraint_index = assemble_matrix_np(sorted_node_list,element_list,pre_defome,delete_constraint_columns=True)
+
+    print('constraint_index',constraint_index)  
+
+    n_dof = 3*node_pos-len(constraint_index)
+    y0 = pre_defome.reshape((-1,))
+    y0 = np.delete(y0,constraint_index)
+    y0 = np.append(y0,np.zeros_like((n_dof,)))
+    
+   
+
+    # temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
+    temp = F-np.matmul(K,y[0:self.n_dof])
+    y_dot[self.n_dof:] = np.matmul(self.M_inv,temp.transpose()).reshape(self.n_dof,)
+
+    ndof = M.columns()
+    y1 = ca.MX.sym("y1",ndof)
+    y2 = ca.MX.sym("y2",ndof)
+    Z = ca.MX.sym("z",9)
+    
+    # force =ca.DM.zeros(ndof-3)
+    # force[4]=2000
+    # F=ca.vertcat(Z,force)
+    # force = ca.vertcat(Z,F[3:])
+
+    y1_dot = y2
+    rhs=Z-ca.mtimes(K,y1)
+    # rhs=F-ca.mtimes(C,y2)-ca.mtimes(K,y1)
+    y2_dot = ca.mtimes(M_inv,rhs)
+    x =ca.vertcat(y1,y2)
+    # z = F[0:3]
+    ode=ca.vertcat(y1_dot,y2_dot)
+
+    dae = {'x':x, 'z':Z, 'ode':ode, 'alg':ca.vertcat(y1[0:3],Z[3:]-F[3:])}
+    option={}
+    option['tf']=0.5
+    
+
+    I = ca.integrator('I', 'idas', dae,option)
+
+    #y1_0=ca.DM([0,0,0,0,0.5,0,0,1.0,0])
+    y1_0=ca.DM.zeros(9,1)
+    # y1_0[4]=0.1
+    # y1_0[5]=-1
+    # y1_0[5]=-1
+    y2_0=ca.DM.zeros(9,1)
+    I(x0=ca.vertcat(y1_0,y2_0))
