@@ -19,14 +19,14 @@ class Element:
                             [ 0, 0, 1, 0, 0, 0],
                             [ 0, 0, 0, c, s, 0],
                             [ 0, 0, 0,-s, c, 0],
-                            [ 0, 0, 0, 0, 0, 1] ])
+                            [ 0, 0, 0, 0, 0, 1] ],dtype=np.float32)
 
         self.Ke = E/l*np.matrix([ [ A,           0,        0, -A,            0,        0],
                                [ 0, 12*(I/l**2),  6*(I/l),  0, -12*(I/l**2),  6*(I/l)],
                                [ 0,     6*(I/l),      4*I,  0,     -6*(I/l),      2*I],
                                [-A,           0,        0,  A,            0,        0],
                                [ 0,-12*(I/l**2), -6*(I/l),  0,  12*(I/l**2), -6*(I/l)],
-                               [ 0,     6*(I/l),      2*I,  0,     -6*(I/l),      4*I] ])
+                               [ 0,     6*(I/l),      2*I,  0,     -6*(I/l),      4*I] ],dtype=np.float32)
 
         
         self.Me = rho*A*l/420*np.matrix([[140,      0,      0,      70,     0,      0],
@@ -34,7 +34,7 @@ class Element:
                                         [0,         22*l,   4*l*l,  0,      13*l, -3*l*l],
                                         [70,        0,      0,      140,    0,      0],
                                         [0,         54,     13*l,   0,      156,    -22*l],
-                                        [0,         -13*l,  -3*l*l, 0,      -22*l,4*l*l]])
+                                        [0,         -13*l,  -3*l*l, 0,      -22*l,4*l*l]],dtype=np.float32)
 
         
         self.Kg = self.T.transpose()*self.Ke*self.T
@@ -49,7 +49,7 @@ class Element:
     @property
     def angle(self):
         diff = self.node2.pos - self.node1.pos
-        return np.arctan2(diff[1],diff[0])
+        return np.arctan2(diff[1],diff[0],dtype=np.float32)
 
     def local_stiffness_matrix(self):
         return self.Ke

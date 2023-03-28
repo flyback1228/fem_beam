@@ -56,7 +56,7 @@ class ObstacleForce:
         for i,(idx,pt) in enumerate(zip(indice,pts)):
             p1,p2 = shapely.ops.nearest_points(pt,self.linerings[idx])
 
-            direction = np.array([p1.x-p2.x,p1.y-p2.y,0.0])
+            direction = np.array([p1.x-p2.x,p1.y-p2.y,0.0],dtype=np.float32)
             direction = (direction/np.linalg.norm(direction)).reshape(3,)
             # direction = direction*np.array([-tangents[i,1],tangents[i,0],0.0])
             

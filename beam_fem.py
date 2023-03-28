@@ -141,12 +141,12 @@ def assemble_matrix(sorted_node_list,elements,delete_constraint_columns=True):
 
     return M,C,K,F,M_inv,constraint_index
 
-def assemble_matrix_np(sorted_node_list,elements,delete_constraint_columns=True):   
+def assemble_matrix_np(sorted_node_list,elements,pre_deform=None,delete_constraint_columns=True):   
     
     ndof = 3*len(sorted_node_list)
 
-    K = np.zeros([ndof,ndof])
-    M = np.zeros([ndof,ndof])
+    K = np.zeros([ndof,ndof],dtype=np.float32)
+    M = np.zeros([ndof,ndof],dtype=np.float32)
 
     for element in elements:
         i1 = 3*sorted_node_list.index(element.node1)
@@ -165,7 +165,7 @@ def assemble_matrix_np(sorted_node_list,elements,delete_constraint_columns=True)
         M[i2:i2+3,i2:i2+3] += m_e[3:6,3:6]
 
     constraint_index=[]
-    F = np.zeros((ndof,))
+    F = np.zeros((ndof,),dtype=np.float32)
     for i,node in enumerate(sorted_node_list):
         
         force = Force()
@@ -187,6 +187,13 @@ def assemble_matrix_np(sorted_node_list,elements,delete_constraint_columns=True)
         if boundry.rz:
             constraint_index.append(i*3+2)
 
+    if pre_deform is not None:
+        all_deform = np.reshape(pre_deform,(-1,))
+        constraint_deform = np.zeros((ndof,),dtype=np.float32)
+        constraint_deform[constraint_index]=all_deform[constraint_index]
+        F_d = np.matmul(K,constraint_deform)
+        F =F+F_d
+        
     if delete_constraint_columns:
         K = np.delete(K,constraint_index,0)
         K = np.delete(K,constraint_index,1)
@@ -203,7 +210,7 @@ def assemble_matrix_np(sorted_node_list,elements,delete_constraint_columns=True)
     C = 2*fractional_matrix_power(M_inv_root*K*M_inv_root,0.5)
  
     C.real[abs(C.real)<1e-5]=0.0
-    C = np.matrix(C.real)
+    C = np.matrix(C.real,dtype=np.float32)
     
 
     return M,C,K,F,constraint_index
@@ -216,5 +223,3 @@ if __name__ == '__main__':
     s.add(n2)
     n3 = n1
     s.add(n3)
-
-    print()

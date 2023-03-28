@@ -249,7 +249,7 @@ def test_fem_refine():
     fem.process(sst_state,E,A,Iz,rho=200,total_iterations=40,tf=0.1)
 
 if __name__=='__main__':
-    test_fem_refine()
+    # test_fem_refine()
     # test_2_beams_no_constraint()
     # test_vibration()
-    # test_2_beams()
+    test_2_beams()
