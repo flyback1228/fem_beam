@@ -163,12 +163,15 @@ class FemRefineScipy:
         self.phi0 = phi0
         
         self.sorted_node_list,self.element_list = mesh(init_state,E,A,I,rho)
-        apply_streching_force(self.element_list,stretching_coeff)
+        # apply_streching_force(self.element_list,stretching_coeff)
         self.obstacls_force.apply_forces(node_list=self.sorted_node_list,k=obstacle_coeff)
         apply_boundary(self.sorted_node_list,[[0,True,True,True],[n_elem,True,True,False]])
-        self.M,self.C,self.K,self.F,self.constraint_index = assemble_matrix_np(self.sorted_node_list,self.element_list,delete_constraint_columns=True)
+        self.M,self.C,self.K,self.F,self.y0,self.constraint_index = assemble_matrix_np(self.sorted_node_list,self.element_list,delete_constraint_columns=True)
         self.n_dof = 3*(n_elem+1)-len(self.constraint_index)
         self.M_inv = np.matrix(scipy.linalg.inv(self.M))
+        
+        
+        
         print("constructor finished")
         
     def model(self,y,t):
@@ -207,7 +210,7 @@ class FemRefineScipy:
         y0 = np.append(y0,np.zeros(self.n_dof,))    
         print('y0 = ',y0)    
         
-        y_list =scipy.integrate.odeint(self.model,y0,t=np.arange(0,10,0.1))
+        y_list =scipy.integrate.odeint(self.model,y0,t=np.arange(0,1,0.01))
         
         y_list = y_list[:,0:self.n_dof]
         
@@ -401,65 +404,81 @@ def test0():
         ax.plot(y[:,0],y[:,1],label='{}'.format(i))
     ax.legend()
     plt.show()
-
-if __name__ == "__main__":
-
-    node_pos = np.array([[0,0],[0,0.1],[0,0.2],[0,0.3],[0,0.4]],dtype=np.float32)
-    r=0.3
-    sorted_node_list,element_list = mesh(node_pos,1e6,A=np.pi*r*r,I=np.pi*r**4,rho=200)
+def test1():
+    p = np.arange(0,1.0,0.05)
+    print(p)
+    node_pos = np.zeros((len(p),2))
+    node_pos[:,1]=p[:]
+    print(node_pos)
+    # node_pos = np.array([[0,0],[0,0.1],[0,0.2],[0,0.3],[0,0.4]],dtype=np.float32)
+    r=0.2
+    sorted_node_list,element_list = mesh(node_pos,E=1e6,A=np.pi*r*r,I=np.pi*r**4,rho=2000)
 
     for e in element_list:
         print('element:',e.id,';node1:',e.node1.id,';node2:',e.node2.id,'length:',e.length)
 
-    apply_force(sorted_node_list,[[2,0,2000,0]])
+    # apply_force(sorted_node_list,[[2,0,2000,0]])
 
-    apply_boundary(sorted_node_list,[[0,True,True,True]])
+    apply_boundary(sorted_node_list,[[0,True,True,True],[len(node_pos)-1,True,True,False]])
+
     
-    pre_defome=np.array([[0,0,np.pi/2],[0.05,0.12,np.pi/6],[0.1,0.23,np.pi/3],[0.15,0.34,np.pi/6],[0.2,0.45,2*np.pi/5]],dtype=np.float32)
-    M,C,K,F,constraint_index = assemble_matrix_np(sorted_node_list,element_list,pre_defome,delete_constraint_columns=True)
+    pre_deform=np.zeros((len(node_pos),3))
+    pre_deform[0,2]=-np.pi/3
+    pre_deform[-1,:]=np.array([0.08,0.2,0])
+    # pre_deform=np.array([[0,0,-np.pi/3],[0,0,0],[0,0,0],[0.09,0.1,0],[0.08,0.2,0]],dtype=np.float32)    
+    y0 = pre_deform.reshape((-1,))
+    
+    
+    M,C,K,F,y2,constraint_index = assemble_matrix_np(sorted_node_list,element_list,pre_deform,delete_constraint_columns=True)
+    M_inv = scipy.linalg.inv(M)
 
     print('constraint_index',constraint_index)  
-
-    n_dof = 3*node_pos-len(constraint_index)
-    y0 = pre_defome.reshape((-1,))
-    y0 = np.delete(y0,constraint_index)
-    y0 = np.append(y0,np.zeros_like((n_dof,)))
+    print('F=',F)
+    n_dof = 3*len(node_pos)-len(constraint_index)
     
-   
+
+    y1 = np.delete(y0,constraint_index)
+    
+    print('y1=',y1)
+    print('y2=',y2)
+    y1 = np.append(y1,np.zeros((n_dof,)))
+    
+    def model(y,t):
+        y_dot = np.zeros_like(y)
+        y_dot[0:n_dof]=y[n_dof:]
+        temp = F-np.matmul(C,y[n_dof:])-np.matmul(K,y[0:n_dof])
+        # temp = F-np.matmul(K,y[0:n_dof])
+        y_dot[n_dof:] = np.matmul(M_inv,temp.transpose()).reshape(n_dof,)
+        return y_dot   
+
+    # yt = model(y1,0)
+    # print('yt:',yt)
 
     # temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
-    temp = F-np.matmul(K,y[0:self.n_dof])
-    y_dot[self.n_dof:] = np.matmul(self.M_inv,temp.transpose()).reshape(self.n_dof,)
 
-    ndof = M.columns()
-    y1 = ca.MX.sym("y1",ndof)
-    y2 = ca.MX.sym("y2",ndof)
-    Z = ca.MX.sym("z",9)
+    y_list =scipy.integrate.odeint(model,y1,t=np.arange(0,10,0.0005))
+    print('yt=',y_list[-1])
     
-    # force =ca.DM.zeros(ndof-3)
-    # force[4]=2000
-    # F=ca.vertcat(Z,force)
-    # force = ca.vertcat(Z,F[3:])
-
-    y1_dot = y2
-    rhs=Z-ca.mtimes(K,y1)
-    # rhs=F-ca.mtimes(C,y2)-ca.mtimes(K,y1)
-    y2_dot = ca.mtimes(M_inv,rhs)
-    x =ca.vertcat(y1,y2)
-    # z = F[0:3]
-    ode=ca.vertcat(y1_dot,y2_dot)
-
-    dae = {'x':x, 'z':Z, 'ode':ode, 'alg':ca.vertcat(y1[0:3],Z[3:]-F[3:])}
-    option={}
-    option['tf']=0.5
+    y_list = y_list[:,0:n_dof]    
+    z = np.zeros((y_list.shape[0],1))
+    for c in constraint_index:
+        y_list = np.insert(y_list,[c],y0[c]*np.ones((y_list.shape[0],1)),axis=1)
+        
+    interval = int(len(y_list)/10)
+    for i,y in enumerate(y_list):
+        if i%interval==0:
+            dy = np.reshape(y,(-1,3))
+            pos = node_pos + dy[:,0:2]
+            plt.plot(pos[:,0],pos[:,1],label='{}'.format(i))
     
+    
+        
+    print(pos)
+    # plt.plot(pos[:,0],pos[:,1],label='{}'.format(-1))
+    plt.legend()
+    plt.show()     
+if __name__ == "__main__":
+    test1()
 
-    I = ca.integrator('I', 'idas', dae,option)
-
-    #y1_0=ca.DM([0,0,0,0,0.5,0,0,1.0,0])
-    y1_0=ca.DM.zeros(9,1)
-    # y1_0[4]=0.1
-    # y1_0[5]=-1
-    # y1_0[5]=-1
-    y2_0=ca.DM.zeros(9,1)
-    I(x0=ca.vertcat(y1_0,y2_0))
+        
+    

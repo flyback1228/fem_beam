@@ -144,7 +144,7 @@ def assemble_matrix(sorted_node_list,elements,delete_constraint_columns=True):
 def assemble_matrix_np(sorted_node_list,elements,pre_deform=None,delete_constraint_columns=True):   
     
     ndof = 3*len(sorted_node_list)
-
+    y0 = None
     K = np.zeros([ndof,ndof],dtype=np.float32)
     M = np.zeros([ndof,ndof],dtype=np.float32)
 
@@ -166,6 +166,7 @@ def assemble_matrix_np(sorted_node_list,elements,pre_deform=None,delete_constrai
 
     constraint_index=[]
     F = np.zeros((ndof,),dtype=np.float32)
+    y0 = np.zeros((ndof,),dtype=np.float32)
     for i,node in enumerate(sorted_node_list):
         
         force = Force()
@@ -192,20 +193,43 @@ def assemble_matrix_np(sorted_node_list,elements,pre_deform=None,delete_constrai
         constraint_deform = np.zeros((ndof,),dtype=np.float32)
         constraint_deform[constraint_index]=all_deform[constraint_index]
         F_d = np.matmul(K,constraint_deform)
-        F =F+F_d
+        F =F-F_d
+        
+        dm_K = ca.DM(K)
+        opti = ca.Opti()
+        y_mx = opti.variable(ndof)
+        f_mx = opti.variable(ndof)        
+        
+        opti.subject_to(ca.mtimes(dm_K,y_mx)==f_mx)
+        opti.subject_to(y_mx[0::3]==all_deform[0::3])
+        opti.subject_to(y_mx[1::3]==all_deform[1::3])
+        opti.subject_to(y_mx[2]==all_deform[2])
+        opti.subject_to(f_mx[5::3]==0)
+        opti.solver('ipopt')
+        opti.solve()
+        y0 = opti.value(y_mx)
+        
+        print('y0 = ',y0)   
+        print('f0 = ',opti.value(f_mx))  
+        print('F = ',F) 
+        y0 = np.array(y0,dtype=np.float32)
         
     if delete_constraint_columns:
         K = np.delete(K,constraint_index,0)
         K = np.delete(K,constraint_index,1)
-        K = np.matrix(K)
+        # K = np.matrix(K)
         
         M = np.delete(M,constraint_index,0)
         M = np.delete(M,constraint_index,1)
-        M = np.matrix(M)
+        # M = np.matrix(M)
         
         F = np.delete(F,constraint_index,0)
-        F = np.matrix(F)
-
+        # F = np.matrix(F)
+        
+        
+        y0 = np.delete(y0,constraint_index,0)
+        # y0 = np.matrix(y0)
+        
     M_inv_root = fractional_matrix_power(M,-0.5)        
     C = 2*fractional_matrix_power(M_inv_root*K*M_inv_root,0.5)
  
@@ -213,7 +237,7 @@ def assemble_matrix_np(sorted_node_list,elements,pre_deform=None,delete_constrai
     C = np.matrix(C.real,dtype=np.float32)
     
 
-    return M,C,K,F,constraint_index
+    return M,C,K,F,y0,constraint_index
 
 if __name__ == '__main__':
     n1 = Node(0,np.array([1,1.0]))
