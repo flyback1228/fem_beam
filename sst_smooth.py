@@ -212,7 +212,7 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.5,total_iters=500,dt_
         yt = np.reshape(yt,(-1,3))
         displacement_history.append(yt) 
         
-        # sst_data = positions+yt
+        sst_data = positions+yt
         
         # ax = plt.subplot(1,1,1)
         # obstacle_force.plot_obstacles(ax)
@@ -246,11 +246,11 @@ if __name__ == "__main__":
     r=0.1
     A=10*np.pi*r*r
     Iz =np.pi*r*r*r*r
-    E=1e5
+    E=1e4
     rho=20000
     total_iters=50
-    dt_per_it=0.01
-    dt=0.00001
+    dt_per_it=0.1
+    dt=0.0001
     
     distance_ratio = 0.8
     phi0 = sst_state[0][2]
