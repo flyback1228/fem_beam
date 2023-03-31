@@ -2,7 +2,7 @@
 
 import copy
 import os
-from tkinter import N
+# from tkinter import N
 from ObstacleForce import *
 import casadi
 import numpy as np
@@ -423,7 +423,7 @@ def test1():
 
     
     pre_deform=np.zeros((len(node_pos),3))
-    pre_deform[0,2]=-np.pi/3
+    pre_deform[0,2]=0
     pre_deform[-1,:]=np.array([0.08,0.2,0])
     # pre_deform=np.array([[0,0,-np.pi/3],[0,0,0],[0,0,0],[0.09,0.1,0],[0.08,0.2,0]],dtype=np.float32)    
     y0 = pre_deform.reshape((-1,))
@@ -456,7 +456,7 @@ def test1():
 
     # temp = self.F-np.matmul(self.C,y[self.n_dof:])-np.matmul(self.K,y[0:self.n_dof])
 
-    y_list =scipy.integrate.odeint(model,y1,t=np.arange(0,10,0.0005))
+    y_list =scipy.integrate.odeint(model,y1,t=np.arange(0,100,0.0005))
     print('yt=',y_list[-1])
     
     y_list = y_list[:,0:n_dof]    

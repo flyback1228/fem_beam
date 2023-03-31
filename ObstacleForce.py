@@ -47,6 +47,21 @@ class ObstacleForce:
             for d in self.linerings:
                 x,y = d.xy
                 ax.plot(x,y,'-g')
+                
+    def get_force(self, states, k=2e6):
+        
+        pts = [shapely.Point(s[0],s[1]) for s in states]
+        indice = self.tree.nearest(pts)
+        F = np.zeros((len(states),3),np.float32)
+        for i,(idx,pt) in enumerate(zip(indice,pts)):
+            p1,p2 = shapely.ops.nearest_points(pt,self.linerings[idx])
+
+            direction = np.array([p1.x-p2.x,p1.y-p2.y,0.0],dtype=np.float32)            
+            distance = shapely.distance(p1,p2)            
+            direction = direction/distance                        
+            f = min(k/distance/distance,1e11)*direction
+            F[i,:]=f[:]
+        return F
 
     def apply_forces(self, node_list, k=2e6):
         
