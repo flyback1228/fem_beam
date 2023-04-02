@@ -17,22 +17,22 @@ def mesh(nodes_pos:np.array,E,A,I,rho,element_idx=None):
 
     node_list = [Node(i,nodes_pos[i]) for i in range(nodes_count)]
 
-    if isinstance(E,(collections.Sequence,np.ndarray)):
+    if isinstance(E,(list,np.ndarray)):
         e_array=E
     else:
         e_array=[E]*(nodes_count-1)
 
-    if isinstance(A,(collections.Sequence,np.ndarray)):
+    if isinstance(A,(list,np.ndarray)):
         a_array=A
     else:
         a_array=[A]*(nodes_count-1)
 
-    if isinstance(I,(collections.Sequence,np.ndarray)):
+    if isinstance(I,(list,np.ndarray)):
         i_array=I
     else:
         i_array=[I]*(nodes_count-1)
 
-    if isinstance(rho,(collections.Sequence,np.ndarray)):
+    if isinstance(rho,(list,np.ndarray)):
         rho_array=rho
     else:
         rho_array=[rho]*(nodes_count-1)

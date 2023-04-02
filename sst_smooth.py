@@ -1,4 +1,3 @@
-from turtle import position
 import fiona
 from shapely.geometry import shape
 import numpy as np
@@ -31,6 +30,25 @@ def modeling(original_data,distance_ratio):
     data[1:,2]=phi[:]
     return data
 
+def modeling2(original_data,distance_ratio):
+    interval = original_data[1:,0:2]-original_data[0:-1,0:2]
+    d_original = np.linalg.norm(interval,axis=1)
+    phi_original = np.arctan2(interval[:,1],interval[:,0])
+    dphi = np.zeros_like(phi_original)
+    dphi[1:] = (phi_original[1:]-phi_original[0:-1])/2.0
+    
+    dphi[0] = original_data[0,2]
+    
+    phi = np.cumsum(dphi)
+    data = np.zeros_like(original_data)
+    data[0,:] = original_data[0,:]
+    
+    # displacement = np.zeros((len(d_original),2))
+    data[1:,0] = d_original*np.cos(phi)*distance_ratio
+    data[1:,1] = d_original*np.sin(phi)*distance_ratio
+    data = np.cumsum(data,axis=0)
+    data[1:,2]=phi[:]
+    return data
 
 # def modeling1(original_data,distance_ratio):
 #     interval = original_data[1:,0:2]-original_data[0:-1,0:2]
@@ -243,7 +261,7 @@ if __name__ == "__main__":
     
     
     
-    r=0.1
+    r=0.3
     A=10*np.pi*r*r
     Iz =np.pi*r*r*r*r
     E=1e4
