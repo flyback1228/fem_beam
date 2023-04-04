@@ -60,11 +60,11 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt_
     
     M = np.zeros((total_dof,total_dof),dtype=np.float32)
     K = np.zeros((total_dof,total_dof),dtype=np.float32)
-    K1 = np.zeros((total_dof,total_dof),dtype=np.float32)
-    K2 = np.zeros((total_dof,total_dof),dtype=np.float32)
-    yp = np.zeros((2*node_count+1,),dtype=np.float32)
+    # K1 = np.zeros((total_dof,total_dof),dtype=np.float32)
+    # K2 = np.zeros((total_dof,total_dof),dtype=np.float32)
+    # yp = np.zeros((2*node_count+1,),dtype=np.float32)
     
-    yp_cp = cp.zeros((2*node_count+1,),dtype=cp.float32)
+    # yp_cp = cp.zeros((2*node_count+1,),dtype=cp.float32)
     
     positions = modeling(sst_data,distance_ratio)
     
@@ -90,16 +90,16 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt_
         M[i2:i2+3,i2:i2+3] += m_e[3:6,3:6]
     
     
-    K1[0:node_count,:]=K[idx1[0:node_count],:]
-    K1[node_count:2*node_count,:]=K[idx1[node_count:2*node_count],:]
-    K1[2*node_count:,:]=K[idx1[2*node_count:],:]
+    # K1[0:node_count,:]=K[idx1[0:node_count],:]
+    # K1[node_count:2*node_count,:]=K[idx1[node_count:2*node_count],:]
+    # K1[2*node_count:,:]=K[idx1[2*node_count:],:]
     
     
-    K2[:,0:node_count]=K1[:,idx1[0:node_count]]
-    K2[:,node_count:2*node_count]=K1[:,idx1[node_count:2*node_count]]
-    K2[:,2*node_count:]=K1[:,idx1[2*node_count:]]
+    # K2[:,0:node_count]=K1[:,idx1[0:node_count]]
+    # K2[:,node_count:2*node_count]=K1[:,idx1[node_count:2*node_count]]
+    # K2[:,2*node_count:]=K1[:,idx1[2*node_count:]]
     
-    K2_cp = cp.array(K2,dtype=cp.float32)
+    # K2_cp = cp.array(K2,dtype=cp.float32)
     
     
     displacement_history =[]
@@ -130,7 +130,7 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt_
     C.real[abs(C.real)<1e-5]=0.0
     C = np.matrix(C.real,dtype=np.float32)
 
-    M_cp = cp.array(M_del)
+    # M_cp = cp.array(M_del)
     K_cp = cp.array(K_del)
     M_inv_cp = cp.array(M_inv)
     C_cp = cp.array(C)
@@ -148,6 +148,17 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt_
     
     positions_cp = cp.array(positions)
     sst_data_cp = cp.array(sst_data)
+    
+    displacement = cp.zeros((node_count,3),dtype=cp.float32)
+    displacement[0,2] = theta0
+    displacement[:,0:2] = sst_data_cp[:,0:2]-positions_cp[:,0:2]
+    
+    y0 =cp.reshape(displacement,(-1,))
+    
+    y1_cp = cp.zeros((2*n_dof,))
+    y1_cp[0:n_dof-1] = y0[3:3*(node_count-1)]
+    y1_cp[n_dof-1] = y0[3*(node_count-1)+2]
+        
     
     for i in range(total_iters):
         print('{}/{}'.format(i,total_iters))
@@ -170,24 +181,20 @@ def process(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt_
             return y_dot 
         
         
-        displacement = cp.zeros((node_count,3),dtype=cp.float32)
-        displacement[:,0:2] = sst_data_cp[:,0:2]-positions_cp[:,0:2]
-        displacement[0,2] = theta0
         
-        yp_cp[0:node_count] = displacement[:,0]
-        yp_cp[node_count:2*node_count] = displacement[:,1]
-        yp_cp[2*node_count] = displacement[0,2]
         
-        fp = cp.matmul(K2_cp[2*node_count+1:,0:2*node_count+1],yp_cp)
-        theta = cp.linalg.solve(K2_cp[2*node_count+1:,2*node_count+1:],fp)
-        displacement[1:,2]=theta    
         
-        y0 =cp.reshape(displacement,(-1,))
-        y1_cp = cp.zeros((2*n_dof,))
-        y1_cp[0:n_dof-1] = y0[3:3*(node_count-1)]
-        y1_cp[n_dof-1] = y0[3*(node_count-1)+2]
-        # y1_cp = cp.append(y1,v0)
         
+        # yp_cp[0:node_count] = displacement[:,0]
+        # yp_cp[node_count:2*node_count] = displacement[:,1]
+        # yp_cp[2*node_count] = displacement[0,2]
+        
+        # fp = cp.matmul(K2_cp[2*node_count+1:,0:2*node_count+1],yp_cp)
+        # theta = cp.linalg.solve(K2_cp[2*node_count+1:,2*node_count+1:],fp)
+        # displacement[1:,2]=theta    
+        
+       
+        y1_cp[n_dof:]=0.0
         start = time.time()
         for j in range(its):
             k1 = model(y1_cp) 
@@ -230,22 +237,22 @@ if __name__ == "__main__":
             obstacles.append(np.vstack([x5,y5]).transpose())
     
     # read sst file    
-    sst_file = os.path.join(script_dir, 'racecar_planner_temp/sst_data.txt')
+    sst_file = os.path.join(script_dir, 'racecar_planner_temp/sst_data(1).txt')
     sst_state = np.array(ca.DM.from_file(sst_file))
     
     
     
     r=0.5
-    A=10*np.pi*r*r
+    A=50*np.pi*r*r
     Iz =np.pi*r*r*r*r
-    E=1e7
+    E=5e5
     rho=20000
-    total_iters=20
-    dt_per_it=0.4
-    dt=0.0004
+    total_iters=100
+    dt_per_it=0.1
+    dt=0.0001
     
-    distance_ratio = 0.9
-    obstacle_force_ratio = 10000
+    distance_ratio = 0.8
+    obstacle_force_ratio = 2e5
     phi0 = sst_state[0][2]
     
     time_start = time.time()
@@ -266,7 +273,7 @@ if __name__ == "__main__":
     obstacle_force.plot_obstacles(ax)
     ax.plot(sst_state[:,0],sst_state[:,1],label='{}'.format(0))
     for i,d in enumerate(displacement_history):
-        if (i+1)%10==0:            
+        if (i+1)%20==0:            
             ax.plot(d[:,0]+positions[:,0],d[:,1]+positions[:,1],label='{}'.format(i+1))
 
     plt.legend()

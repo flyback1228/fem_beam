@@ -59,7 +59,7 @@ class ObstacleForce:
             direction = np.array([p1.x-p2.x,p1.y-p2.y,0.0],dtype=np.float32)            
             distance = shapely.distance(p1,p2)            
             direction = direction/distance                        
-            f = min(k/distance/distance,1e5)*direction
+            f = min(k/distance/distance,1e8)*direction
             F[i,:]=f[:]
         return F
 
