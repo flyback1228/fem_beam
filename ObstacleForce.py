@@ -22,6 +22,8 @@ class ObstacleForce:
         for i,d in enumerate(data):
             d = np.reshape(d,(-1,2))
             polygon = shapely.Polygon(d)
+            if polygon.contains(shapely.Point(0.0,0.0)):
+                continue
             # for i in range(0,len(d)-1):
             #     pt = shapely.Point(d[i])
             #     self.points.append(pt)                
