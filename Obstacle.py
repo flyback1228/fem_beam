@@ -15,8 +15,9 @@ class Obstacle():
         self.polygons = []
         for d in data:
             poly = shapely.Polygon(np.reshape(d,(-1,2)))
-            if not poly.contains(shapely.Point(0.0,0.0)):
-                self.polygons.append(poly)
+            if poly.contains(shapely.Point(0.0,0.0)) or poly.contains(shapely.Point(-28,-58)):
+                continue
+            self.polygons.append(poly)
         #self.polygons = [ for d in data]
         self.multi_polygons = shapely.MultiPolygon(self.polygons)
 

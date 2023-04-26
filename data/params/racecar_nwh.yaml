@@ -1,0 +1,27 @@
+m: 1485
+lf: 1.307
+lr: 1.35
+
+Iz: 2196
+width: 1.7
+
+front_wheel_radius: 0.34
+front_wheel_mass: 40
+rear_wheel_radius: 0.356
+rear_wheel_mass: 40
+
+Cm1: 0.3
+Cm2: 30
+Cm0: 500
+Cd: 6000
+Cbf: 7000
+Cbr: 7000
+
+d_max: 1.0
+d_min: 0
+v_max: 100
+v_min: 0.1
+delta_min: -0.436
+delta_max: 0.436
+delta_dot_min: -1
+delta_dot_max: 1

@@ -1,0 +1,16 @@
+#pajecka and motor coefficients
+B_long: 8.0
+C_long: 1.9
+D_long: 0.4
+B_lat: 8.0
+C_lat: 1.9
+D_lat: 0.8
+#B_long: 3.38
+#C_long: 1.29
+#D_long: 0.190
+#B_lat: 3.38
+#C_lat: 1.29
+#D_lat: 0.190
+#B_lat: 2.58
+#C_lat: 1.2
+#D_lat: 0.17
