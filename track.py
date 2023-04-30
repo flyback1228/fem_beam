@@ -9,7 +9,7 @@ class Track():
         else:
             p1,p2 = direct_spline(waypoints,direct)
         
-
+        waypoints = ca.DM(waypoints)
         self.t_max = waypoints.rows()-1.0-0.00001
         self.pt_t = parametric_function(waypoints,p1,p2)
         
@@ -33,8 +33,8 @@ class Track():
         integ = ca.integrator('inte','cvodes',dae,{'grid':ts,'output_t0':True})
         s_inte = integ(x0=0)
         self.s_value = np.array(s_inte['xf'].T)
-        self.s_value = np.reshape(self.s_value,len(self.s_value))
-        
+        self.s_value = np.reshape(self.s_value,(len(self.s_value),))
+        self.s_max=self.s_value[-1]
         # for i in range(len(ts)):
         #     vec = self.dsdt(ts[i],0.0)
         #     vec = vec/np.linalg.norm(vec)

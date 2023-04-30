@@ -409,7 +409,7 @@ def process1(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt
     K2_cp = cp.array(K2,dtype=cp.float32)
     
     
-    displacement_history =[]
+    displacement_history =[original_displacement]
 
     
 
@@ -417,6 +417,7 @@ def process1(sst_data,obstacles,E,A,Iz,rho,distance_ratio=0.9,total_iters=500,dt
     constraint_deform[2]=theta0
     # constraint_deform[0:2] = sst_data[0,0:2]-positions[0,0:2]
     constraint_deform[-3:-1] = original_displacement[-1,0:2]
+
 
     # print(constraint_deform[-6:])
     # F_x = np.zeros((total_dof,))
@@ -620,7 +621,7 @@ def test_fx():
     
     # read obstacle file
     obstacles=[]
-    obstacle_file = os.path.join(script_dir, 'data/ces_compare/extended_polygon.shp')
+    obstacle_file = os.path.join(script_dir, 'data/fem_refine/extended_polygon.shp')
     with fiona.open(obstacle_file) as shapefile:
         for record in shapefile:
             geometry = shape(record['geometry'])
@@ -628,29 +629,29 @@ def test_fx():
             obstacles.append(np.vstack([x5,y5]).transpose())
     
     # read sst file    
-    sst_file = os.path.join(script_dir, 'data/ces_compare/rrt_data.txt')
-    # sst_state = np.array(ca.DM.from_file(sst_file))
+    sst_file = os.path.join(script_dir, 'data/fem_refine/sst_data.txt')
+    sst_state = np.array(ca.DM.from_file(sst_file))
     
-    with open(sst_file) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
-        data = []
-        for row in csv_reader:
-            data.append([float(row[0]),float(row[1])])
+    # with open(sst_file) as csv_file:
+    #     csv_reader = csv.reader(csv_file, delimiter=',')
+    #     data = []
+    #     for row in csv_reader:
+    #         data.append([float(row[0]),float(row[1])])
     
     
-    sst_state = np.zeros((2*len(data)-1,3))
-    sst_state[0::2,0:2] = np.array(data)
-    sst_state[1::2,0:2] = (sst_state[0:-1:2,0:2]+sst_state[2::2,0:2])/2
+    # sst_state = np.zeros((2*len(data)-1,3))
+    # sst_state[0::2,0:2] = np.array(data)
+    # sst_state[1::2,0:2] = (sst_state[0:-1:2,0:2]+sst_state[2::2,0:2])/2
     
-    sst_state[0,2]=-170/180.0*np.pi;
+    # sst_state[0,2]=-170/180.0*np.pi;
     
-    # if len(sst_state)%2 == 1:
-    #     sst_state=sst_state[0::2,:]
-    # else:
-    #     sst_state1 = np.zeros((len(sst_state)/2+1,len(sst_state[0,:])))
-    #     sst_state1[0:-1,:] = sst_state[0::2,:]
-    #     sst_state1[-1,:] = sst_state[-1,:]
-    #     sst_state = sst_state1
+    if len(sst_state)%2 == 1:
+        sst_state=sst_state[0::2,:]
+    else:
+        sst_state1 = np.zeros((len(sst_state)/2+1,len(sst_state[0,:])))
+        sst_state1[0:-1,:] = sst_state[0::2,:]
+        sst_state1[-1,:] = sst_state[-1,:]
+        sst_state = sst_state1
     
     
     
@@ -658,15 +659,15 @@ def test_fx():
     r=0.3
     A=2*np.pi*r*r
     Iz =10*np.pi*r*r*r*r
-    E=15e4*np.linspace(10,1,len(sst_state)-1)
+    E=15e6*np.linspace(10,1,len(sst_state)-1)
     # E[0:10] = E[0]
     rho=20000
-    total_iters=10
-    dt_per_it=0.5
+    total_iters=30
+    dt_per_it=0.2
     dt=0.0001
     
     distance_ratio = 0.1
-    obstacle_force_ratio = 2e4
+    obstacle_force_ratio = 1e4
     phi0 = sst_state[0][2]
     
     time_start = time.time()
@@ -690,22 +691,25 @@ def test_fx():
     ax.plot(sst_state[:,0],sst_state[:,1],label='{}'.format(-1))
     ax.plot(positions[:,0],positions[:,1],label='{}'.format(0))
     for i,d in enumerate(displacement_history):
-        if (i+1)%2==0:            
-            ax.plot(d[:,0]+positions[:,0],d[:,1]+positions[:,1],label='{}'.format(i+1))
-            # ax.plot(d[0:3,0]+positions[0:3,0],d[0:3,1]+positions[0:3,1],label='{}'.format(i+1))
-            # ax.arrow(d[1,0]+positions[1,0],d[1,1]+positions[1,1],np.cos(d[1,2]-theta0),np.sin(d[1,2]-theta0))
-            # ax.arrow(d[2,0]+positions[2,0],d[2,1]+positions[2,1],np.cos(d[2,2]-theta0),np.sin(d[2,2]-theta0))
-            print('theta',d[:,2])
+            
+        ax.plot(d[:,0]+positions[:,0],d[:,1]+positions[:,1],label='{}'.format(i+1))
+        # ax.plot(d[0:3,0]+positions[0:3,0],d[0:3,1]+positions[0:3,1],label='{}'.format(i+1))
+        # ax.arrow(d[1,0]+positions[1,0],d[1,1]+positions[1,1],np.cos(d[1,2]-theta0),np.sin(d[1,2]-theta0))
+        # ax.arrow(d[2,0]+positions[2,0],d[2,1]+positions[2,1],np.cos(d[2,2]-theta0),np.sin(d[2,2]-theta0))
+        result_file = os.path.join(script_dir, 'result/iteraters/it_{}.txt'.format(i))
+        result = ca.DM(displacement_history[i][:,0:2]+positions[:,0:2])
+        result.to_file(result_file)
+        print('theta',d[:,2])
     ax.arrow(0,0,np.cos(sst_state[0,2]),np.sin(sst_state[0,2]),width=0.1,label='initial direction')
 
     result = ca.DM(displacement_history[-1][:,0:2]+positions[:,0:2])
     
     positions_dm = ca.DM(positions[:,0:2])
-    positions_file = os.path.join(script_dir, 'result/distance_ratio/ces.txt'.format(distance_ratio))
+    positions_file = os.path.join(script_dir, 'result/iteraters/ces.txt'.format(distance_ratio))
     positions_dm.to_file(positions_file)
     
-    obstacle_file = os.path.join(script_dir, 'result/distance_ratio/ratio_{}.txt'.format(distance_ratio))
-    result.to_file(obstacle_file)
+    # obstacle_file = os.path.join(script_dir, 'result/iteraters/ratio_{}.txt'.format(distance_ratio))
+    # result.to_file(obstacle_file)
 
     plt.legend()
     plt.show()
